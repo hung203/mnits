@@ -175,4 +175,3 @@ if uploaded_file is not None:
             prediction = st.session_state.model.predict(img_array)
             st.image(image, caption="Hình ảnh tải lên", use_container_width=True)
             st.write(f"Dự đoán: {prediction[0]}")
-st.markdown("[Xem MLflow Tracking UI](http://public-url:5000)", unsafe_allow_html=True)
