@@ -18,19 +18,35 @@ st.title("Phân loại chữ số viết tay MNIST với Streamlit và MLflow")
 # Bước 1: Xử lý dữ liệu
 # ------------------------
 st.header("1. Xử lý dữ liệu")
-st.write("Đang tải dữ liệu MNIST...")
-mnist = fetch_openml('mnist_784', version=1, as_frame=False)
-X, y = mnist.data / 255.0, mnist.target.astype(int)
-st.write("Dữ liệu MNIST đã được tải thành công!")
+
+# Kiểm tra nếu dữ liệu đã được lưu trong session_state chưa
+if "mnist_loaded" not in st.session_state:
+    st.write("Đang tải dữ liệu MNIST...")
+    mnist = fetch_openml('mnist_784', version=1, as_frame=False)
+    X, y = mnist.data / 255.0, mnist.target.astype(int)
+    # Lưu dữ liệu vào session_state để dùng lại
+    st.session_state.X = X
+    st.session_state.y = y
+    st.session_state.mnist_loaded = True
+    st.write("Dữ liệu MNIST đã được tải và lưu thành công!")
+else:
+    st.write("Dữ liệu MNIST đã được tải từ bộ nhớ!")
+    X = st.session_state.X
+    y = st.session_state.y
 
 # In ra số lượng mẫu của từng label trong dữ liệu gốc
 unique_labels, counts = np.unique(y, return_counts=True)
 label_counts = {int(k): int(v) for k, v in zip(unique_labels, counts)}
 st.write("Số lượng mỗi label trong dữ liệu gốc:", label_counts)
 
-# Hiển thị một vài hình ảnh minh họa
+# Hiển thị một vài hình ảnh minh họa và lưu vào session_state
 st.subheader("Ví dụ một vài hình ảnh minh họa")
-indices = random.sample(range(len(X)), 5)
+if "example_images" not in st.session_state:
+    indices = random.sample(range(len(X)), 5)
+    st.session_state.example_images = indices
+else:
+    indices = st.session_state.example_images
+
 fig, axs = plt.subplots(1, 5, figsize=(12, 3))
 for i, idx in enumerate(indices):
     img = X[idx].reshape(28, 28)
@@ -55,13 +71,17 @@ if st.button("Chia tách dữ liệu"):
     )
     st.session_state.X_train = X_train
     st.session_state.X_valid = X_valid
+    st.session_state.X_test = X_test
     st.session_state.y_train = y_train
     st.session_state.y_valid = y_valid
+    st.session_state.y_test = y_test
     st.session_state.data_split_done = True
 
 # Hiển thị thông tin chia tách nếu đã thực hiện
 if st.session_state.get("data_split_done", False):
-    st.write(f"Dữ liệu Train: {st.session_state.X_train.shape}, Validation: {st.session_state.X_valid.shape}")
+    st.write(f"Dữ liệu Train: {st.session_state.X_train.shape}")
+    st.write(f"Dữ liệu Validation: {st.session_state.X_valid.shape}")
+    st.write(f"Dữ liệu Test: {st.session_state.X_test.shape}")
 
 # ------------------------
 # Bước 2b: Cân bằng dữ liệu (Oversampling)
@@ -155,3 +175,4 @@ if uploaded_file is not None:
             prediction = st.session_state.model.predict(img_array)
             st.image(image, caption="Hình ảnh tải lên", use_container_width=True)
             st.write(f"Dự đoán: {prediction[0]}")
+st.markdown("[Xem MLflow Tracking UI](http://public-url:5000)", unsafe_allow_html=True)
