@@ -10,7 +10,7 @@ from sklearn.preprocessing import StandardScaler
 import numpy as np
 import matplotlib.pyplot as plt
 import random
-
+import pandas as pd
 # Tiêu đề ứng dụng
 st.title("Phân loại chữ số viết tay MNIST với Streamlit và MLflow")
 
@@ -175,3 +175,90 @@ if uploaded_file is not None:
             prediction = st.session_state.model.predict(img_array)
             st.image(image, caption="Hình ảnh tải lên", use_container_width=True)
             st.write(f"Dự đoán: {prediction[0]}")
+
+st.header("5. Tracking MLflow")
+
+try:
+    import tempfile
+    import shutil
+    from mlflow.tracking import MlflowClient
+    client = MlflowClient()
+
+    # Lấy danh sách thí nghiệm từ MLflow
+    experiments = mlflow.search_experiments()
+
+    if experiments:
+        st.write("#### Danh sách thí nghiệm")
+        experiment_data = []
+        for exp in experiments:
+            experiment_data.append({
+                "Experiment ID": exp.experiment_id,
+                "Experiment Name": exp.name,
+                "Artifact Location": exp.artifact_location
+            })
+        st.dataframe(pd.DataFrame(experiment_data))
+
+        # Chọn thí nghiệm để xem chi tiết
+        selected_exp_id = st.selectbox(
+            "🔍 Chọn thí nghiệm để xem chi tiết",
+            options=[exp.experiment_id for exp in experiments]
+        )
+
+        # Lấy danh sách runs trong thí nghiệm đã chọn
+        runs = mlflow.search_runs(selected_exp_id)
+        if not runs.empty:
+            st.write("#### Danh sách runs")
+            st.dataframe(runs)
+
+            # Chọn run để xem chi tiết
+            selected_run_id = st.selectbox(
+                "🔍 Chọn run để xem chi tiết",
+                options=runs["run_id"]
+            )
+
+            # Hiển thị chi tiết run
+            run = mlflow.get_run(selected_run_id)
+            st.write("##### Thông tin run")
+            st.write(f"*Run ID:* {run.info.run_id}")
+            st.write(f"*Experiment ID:* {run.info.experiment_id}")
+            st.write(f"*Start Time:* {run.info.start_time}")
+
+            # Hiển thị metrics
+            st.write("##### Metrics")
+            st.json(run.data.metrics)
+
+            # Hiển thị params
+            st.write("##### Params")
+            st.json(run.data.params)
+
+            # Hiển thị artifacts và cho phép tải xuống hoặc trực quan hóa
+            artifacts = client.list_artifacts(run.info.run_id)
+            if artifacts:
+                st.write("##### Artifacts")
+                for artifact in artifacts:
+                    try:
+                        with tempfile.TemporaryDirectory() as tmp_dir:
+                            artifact_path = client.download_artifacts(run.info.run_id, artifact.path, dst_path=tmp_dir)
+                            local_artifact_path = shutil.copy(artifact_path, tmp_dir)
+                            st.write(f"- {artifact.path}")
+                            if artifact.path.endswith((".png", ".jpg", ".jpeg")):
+                                st.image(local_artifact_path, caption=artifact.path)
+                            elif artifact.path.endswith((".csv", ".txt")):
+                                with open(local_artifact_path, "r", encoding='utf-8') as file:
+                                    st.text(file.read())
+                            with open(local_artifact_path, "rb") as file:
+                                st.download_button(
+                                    label=f"📥 Tải xuống {artifact.path}",
+                                    data=file.read(),
+                                    file_name=artifact.path
+                                )
+                    except PermissionError:
+                        st.error(f"Không thể tải artifact do lỗi quyền truy cập: {artifact.path}")
+            else:
+                st.warning("Không có artifact nào trong run này.")
+        else:
+            st.warning("Không có runs nào trong thí nghiệm này.")
+    else:
+        st.warning("Không có thí nghiệm nào được tìm thấy.")
+except Exception as e:
+    st.error(f"Đã xảy ra lỗi khi lấy danh sách thí nghiệm: {e}")
